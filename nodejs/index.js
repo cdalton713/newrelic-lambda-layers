@@ -11,9 +11,10 @@ if (process.env.LAMBDA_TASK_ROOT && typeof process.env.NEW_RELIC_SERVERLESS_MODE
 }
 
 const newrelic = require('newrelic')
+
 function getHandlerPath() {
   let handler
-  const { NEW_RELIC_LAMBDA_HANDLER } = process.env
+  const {NEW_RELIC_LAMBDA_HANDLER} = process.env
 
   if (!NEW_RELIC_LAMBDA_HANDLER) {
     throw new Error('No NEW_RELIC_LAMBDA_HANDLER environment variable set.')
@@ -31,7 +32,7 @@ function getHandlerPath() {
 
   const handlerToWrap = parts[parts.length - 1]
   const moduleToImport = handler.slice(0, handler.lastIndexOf('.'))
-  return { moduleToImport, handlerToWrap }
+  return {moduleToImport, handlerToWrap}
 }
 
 function handleRequireImportError(e, moduleToImport) {
@@ -51,7 +52,11 @@ async function getImportedModule(LAMBDA_TASK_ROOT, moduleToImport) {
       try {
         return await import(`${modpath}.mjs`)
       } catch (esmError) {
-        throw handleRequireImportError(esmError, moduleToImport)
+        try {
+          return await import(`${modpath}.cjs`)
+        } catch {
+          throw handleRequireImportError(esmError, moduleToImport)
+        }
       }
     } else if (e.code === 'ERR_REQUIRE_ESM') {
       // The name is right, but we attempted to require an ECMAScript module,
@@ -68,8 +73,8 @@ async function getImportedModule(LAMBDA_TASK_ROOT, moduleToImport) {
 }
 
 async function requireHandler() {
-  const { LAMBDA_TASK_ROOT = '.' } = process.env
-  const { moduleToImport, handlerToWrap } = getHandlerPath()
+  const {LAMBDA_TASK_ROOT = '.'} = process.env
+  const {moduleToImport, handlerToWrap} = getHandlerPath()
 
   const userHandler = (await getImportedModule(LAMBDA_TASK_ROOT, moduleToImport))[handlerToWrap]
 
@@ -97,4 +102,4 @@ async function patchedHandler() {
     .then(wrappedHandler => wrappedHandler.apply(this, args))
 }
 
-module.exports = { handler: patchedHandler, getHandlerPath }
+module.exports = {handler: patchedHandler, getHandlerPath}
